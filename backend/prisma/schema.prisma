@@ -1,0 +1,261 @@
+generator client {
+  provider      = "prisma-client-js"
+  // node:20-alpine ships OpenSSL 3.x under musl libc. Without an explicit target here,
+  // Prisma falls back to guessing (often wrongly to 1.1.x) and the engine binary fails
+  // to load, producing "Could not parse schema engine response" at runtime.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  LECTURER
+  ADMIN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+  LOCKED
+}
+
+model User {
+  id                String    @id @default(uuid())
+  name              String
+  email             String    @unique
+  passwordHash      String
+  role              Role
+  isEmailVerified   Boolean   @default(false)
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime?
+  rememberMe        Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  student           Student?
+  lecturer          Lecturer?
+  refreshTokens     RefreshToken[]
+  resetTokens       PasswordResetToken[]
+  verifyTokens      EmailVerificationToken[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  sessionsCreated   AttendanceSession[] @relation("SessionCreatedBy")
+  attendanceEdits   AttendanceRecord[]  @relation("MarkedBy")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  code      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  students  Student[]
+  lecturers Lecturer[]
+  courses   Course[]
+}
+
+model Student {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentCode  String    @unique
+  level        String
+  programme    String
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  enrollments  Enrollment[]
+  attendance   AttendanceRecord[]
+
+  @@index([departmentId])
+}
+
+model Lecturer {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffCode    String    @unique
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  designation  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  courses      Course[]
+  sessions     AttendanceSession[]
+
+  @@index([departmentId])
+}
+
+model Course {
+  id           String    @id @default(uuid())
+  courseCode   String    @unique
+  title        String
+  semester     String
+  creditHours  Int
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  lecturerId   String?
+  lecturer     Lecturer?  @relation(fields: [lecturerId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  enrollments  Enrollment[]
+  sessions     AttendanceSession[]
+
+  @@index([departmentId])
+  @@index([lecturerId])
+}
+
+model Enrollment {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollmentDate DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([studentId, courseId])
+  @@index([courseId])
+}
+
+model AttendanceSession {
+  id           String        @id @default(uuid())
+  courseId     String
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdById  String
+  createdBy    User          @relation("SessionCreatedBy", fields: [createdById], references: [id])
+  lecturerId   String
+  lecturer     Lecturer      @relation(fields: [lecturerId], references: [id])
+  qrToken      String        @unique
+  status       SessionStatus @default(OPEN)
+  sessionDate  DateTime      @default(now())
+  expiresAt    DateTime
+  latitude     Float?
+  longitude    Float?
+  radiusMeters Int?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  records      AttendanceRecord[]
+
+  @@index([courseId])
+  @@index([qrToken])
+}
+
+model AttendanceRecord {
+  id           String            @id @default(uuid())
+  sessionId    String
+  session      AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status       AttendanceStatus  @default(ABSENT)
+  markedById   String?
+  markedBy     User?             @relation("MarkedBy", fields: [markedById], references: [id])
+  checkedInAt  DateTime?
+  comment      String?
+  locked       Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("system")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}

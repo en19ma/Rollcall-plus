@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rollcall
+      POSTGRES_PASSWORD: rollcall
+      POSTGRES_DB: rollcall_plus
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rollcall -d rollcall_plus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://rollcall:rollcall@postgres:5432/rollcall_plus?schema=public
+      JWT_ACCESS_SECRET: change_this_access_secret
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: change_this_refresh_secret
+      JWT_REFRESH_EXPIRES_IN: 7d
+      BCRYPT_SALT_ROUNDS: 12
+      FRONTEND_URL: http://localhost:3000
+      LOW_ATTENDANCE_THRESHOLD: 75
+      ACCOUNT_LOCK_ATTEMPTS: 5
+      ACCOUNT_LOCK_MINUTES: 15
+    ports:
+      - "4000:4000"
+    # No versioned migration files ship with this scaffold (they need to be generated
+    # against a live database — see README section 8). `db push` syncs the schema
+    # directly instead. Switch to `prisma migrate deploy` once you've generated and
+    # committed real migrations via `npx prisma migrate dev --name init`.
+    command: sh -c "npx prisma db push --skip-generate && node dist/main"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
