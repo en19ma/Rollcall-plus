@@ -21,12 +21,12 @@ export class CoursesService {
     if (params.departmentId) where.departmentId = params.departmentId;
     if (params.lecturerId) where.lecturerId = params.lecturerId;
 
-    return this.prisma.course.findMany({
+    rreturn this.prisma.course.findMany({
       where,
       include: {
         department: true,
         lecturer: { include: { user: true } },
-        _count: { select: { enrollments: true } },
+        _count: { select: { enrollments: { where: { deletedAt: null } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
