@@ -12,9 +12,19 @@ export class EnrollmentsService {
   ) {}
 
   async create(dto: CreateEnrollmentDto, actingUserId?: string) {
-    const existing = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId: dto.studentId, courseId: dto.courseId } },
-    });
+  const [student, course] = await Promise.all([
+    this.prisma.student.findUnique({ where: { id: dto.studentId } }),
+    this.prisma.course.findUnique({ where: { id: dto.courseId } }),
+  ]);
+  if (!student) throw new NotFoundException('Student not found');
+  if (!course) throw new NotFoundException('Course not found');
+  if (student.departmentId !== course.departmentId) {
+    throw new ForbiddenException('You can only register for courses in your own department');
+  }
+
+  const existing = await this.prisma.enrollment.findUnique({
+    where: { studentId_courseId: { studentId: dto.studentId, courseId: dto.courseId } },
+  });
     if (existing && !existing.deletedAt) {
       throw new ConflictException('Student is already enrolled in this course');
     }
