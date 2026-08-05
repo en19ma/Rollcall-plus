@@ -4,6 +4,7 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AnalyticsService } from './analytics.service';
 
 @ApiTags('analytics')
@@ -33,12 +34,12 @@ export class AnalyticsController {
 
   @Get('lecturers/:lecturerId/dashboard')
   @Roles(Role.ADMIN, Role.LECTURER)
-  lecturerDashboard(@Param('lecturerId') lecturerId: string) {
-    return this.service.lecturerDashboard(lecturerId);
+  lecturerDashboard(@CurrentUser() user: any, @Param('lecturerId') lecturerId: string) {
+    return this.service.lecturerDashboard(lecturerId, user);
   }
 
   @Get('students/:studentId/dashboard')
-  studentDashboard(@Param('studentId') studentId: string) {
-    return this.service.studentDashboard(studentId);
+  studentDashboard(@CurrentUser() user: any, @Param('studentId') studentId: string) {
+    return this.service.studentDashboard(studentId, user);
   }
 }

@@ -379,7 +379,17 @@ export class AttendanceService {
     });
   }
 
-  async getStudentHistory(studentId: string) {
+  /** Students may only view their own records; admins and lecturers may view any student's. */
+  private async assertStudentAccess(requestingUser: { id: string; role: string } | undefined, studentId: string) {
+    if (!requestingUser || requestingUser.role !== 'STUDENT') return;
+    const own = await this.prisma.student.findUnique({ where: { userId: requestingUser.id } });
+    if (!own || own.id !== studentId) {
+      throw new ForbiddenException('You can only view your own attendance data');
+    }
+  }
+
+  async getStudentHistory(studentId: string, requestingUser?: { id: string; role: string }) {
+    await this.assertStudentAccess(requestingUser, studentId);
     return this.prisma.attendanceRecord.findMany({
       where: { studentId, deletedAt: null },
       include: { session: { include: { course: true } } },
@@ -387,7 +397,8 @@ export class AttendanceService {
     });
   }
 
-  async getStudentCourseStats(studentId: string, courseId: string) {
+  async getStudentCourseStats(studentId: string, courseId: string, requestingUser?: { id: string; role: string }) {
+    await this.assertStudentAccess(requestingUser, studentId);
     const records = await this.prisma.attendanceRecord.findMany({
       where: { studentId, deletedAt: null, session: { courseId } },
     });
@@ -399,7 +410,8 @@ export class AttendanceService {
     return { total, present, percentage };
   }
 
-  async getStudentOverallPercentage(studentId: string) {
+  async getStudentOverallPercentage(studentId: string, requestingUser?: { id: string; role: string }) {
+    await this.assertStudentAccess(requestingUser, studentId);
     const enrollments = await this.prisma.enrollment.findMany({
       where: { studentId, deletedAt: null },
       include: { course: true },
@@ -407,6 +419,7 @@ export class AttendanceService {
     const perCourse = await Promise.all(
       enrollments.map(async (e) => ({
         course: e.course,
+        // Ownership already verified above — skip the redundant per-course check.
         ...(await this.getStudentCourseStats(studentId, e.courseId)),
       })),
     );

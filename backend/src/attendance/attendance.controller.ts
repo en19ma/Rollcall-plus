@@ -100,17 +100,21 @@ export class AttendanceController {
   }
 
   @Get('students/:studentId/history')
-  getStudentHistory(@Param('studentId') studentId: string) {
-    return this.service.getStudentHistory(studentId);
+  getStudentHistory(@CurrentUser() user: any, @Param('studentId') studentId: string) {
+    return this.service.getStudentHistory(studentId, user);
   }
 
   @Get('students/:studentId/summary')
-  getStudentSummary(@Param('studentId') studentId: string) {
-    return this.service.getStudentOverallPercentage(studentId);
+  getStudentSummary(@CurrentUser() user: any, @Param('studentId') studentId: string) {
+    return this.service.getStudentOverallPercentage(studentId, user);
   }
 
   @Get('students/:studentId/courses/:courseId/stats')
-  getStudentCourseStats(@Param('studentId') studentId: string, @Param('courseId') courseId: string) {
-    return this.service.getStudentCourseStats(studentId, courseId);
+  getStudentCourseStats(
+    @CurrentUser() user: any,
+    @Param('studentId') studentId: string,
+    @Param('courseId') courseId: string,
+  ) {
+    return this.service.getStudentCourseStats(studentId, courseId, user);
   }
 }

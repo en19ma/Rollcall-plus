@@ -52,9 +52,4 @@ export class CoursesController {
   assignLecturer(@CurrentUser() user: any, @Param('id') id: string, @Body('lecturerId') lecturerId: string) {
     return this.service.assignLecturer(id, lecturerId, user.id);
   }
-  @Post(':id/claim')
-@Roles(Role.LECTURER)
-claimCourse(@CurrentUser() user: any, @Param('id') id: string) {
-  return this.service.claimCourse(id, user.id);
-}
 }

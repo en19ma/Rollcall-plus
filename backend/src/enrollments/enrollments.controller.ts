@@ -40,8 +40,8 @@ export class EnrollmentsController {
   }
 
   @Get('student/:studentId')
-  findForStudent(@Param('studentId') studentId: string) {
-    return this.service.findForStudent(studentId);
+  findForStudent(@CurrentUser() user: any, @Param('studentId') studentId: string) {
+    return this.service.findForStudent(studentId, user);
   }
 
   @Delete(':id')

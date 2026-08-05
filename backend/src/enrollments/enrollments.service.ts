@@ -12,19 +12,9 @@ export class EnrollmentsService {
   ) {}
 
   async create(dto: CreateEnrollmentDto, actingUserId?: string) {
-  const [student, course] = await Promise.all([
-    this.prisma.student.findUnique({ where: { id: dto.studentId } }),
-    this.prisma.course.findUnique({ where: { id: dto.courseId } }),
-  ]);
-  if (!student) throw new NotFoundException('Student not found');
-  if (!course) throw new NotFoundException('Course not found');
-  if (student.departmentId !== course.departmentId) {
-    throw new ForbiddenException('You can only register for courses in your own department');
-  }
-
-  const existing = await this.prisma.enrollment.findUnique({
-    where: { studentId_courseId: { studentId: dto.studentId, courseId: dto.courseId } },
-  });
+    const existing = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId: dto.studentId, courseId: dto.courseId } },
+    });
     if (existing && !existing.deletedAt) {
       throw new ConflictException('Student is already enrolled in this course');
     }
@@ -83,7 +73,13 @@ export class EnrollmentsService {
     return { enrolled: results.length, total: studentIds.length };
   }
 
-  findForStudent(studentId: string) {
+  async findForStudent(studentId: string, requestingUser?: { id: string; role: string }) {
+    if (requestingUser && requestingUser.role === 'STUDENT') {
+      const own = await this.prisma.student.findUnique({ where: { userId: requestingUser.id } });
+      if (!own || own.id !== studentId) {
+        throw new ForbiddenException('You can only view your own enrollments');
+      }
+    }
     return this.prisma.enrollment.findMany({
       where: { studentId, deletedAt: null },
       include: { course: { include: { lecturer: { include: { user: true } } } } },

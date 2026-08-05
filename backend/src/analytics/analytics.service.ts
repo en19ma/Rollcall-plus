@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 
@@ -89,7 +89,27 @@ export class AnalyticsService {
     return { courseId, sessionCount: sessions.length, trend };
   }
 
-  async lecturerDashboard(lecturerId: string) {
+  /** A lecturer may only view their own dashboard; admins may view any. */
+  private async assertLecturerAccess(requestingUser: { id: string; role: string } | undefined, lecturerId: string) {
+    if (!requestingUser || requestingUser.role !== 'LECTURER') return;
+    const own = await this.prisma.lecturer.findUnique({ where: { userId: requestingUser.id } });
+    if (!own || own.id !== lecturerId) {
+      throw new ForbiddenException('You can only view your own dashboard');
+    }
+  }
+
+  /** A student may only view their own dashboard; admins and lecturers may view any. */
+  private async assertStudentAccess(requestingUser: { id: string; role: string } | undefined, studentId: string) {
+    if (!requestingUser || requestingUser.role !== 'STUDENT') return;
+    const own = await this.prisma.student.findUnique({ where: { userId: requestingUser.id } });
+    if (!own || own.id !== studentId) {
+      throw new ForbiddenException('You can only view your own dashboard');
+    }
+  }
+
+  async lecturerDashboard(lecturerId: string, requestingUser?: { id: string; role: string }) {
+    await this.assertLecturerAccess(requestingUser, lecturerId);
+
     const courses = await this.prisma.course.findMany({
       where: { lecturerId, deletedAt: null },
       include: { _count: { select: { enrollments: true } } },
@@ -112,7 +132,9 @@ export class AnalyticsService {
     return { courses, todaysSessions };
   }
 
-  async studentDashboard(studentId: string) {
+  async studentDashboard(studentId: string, requestingUser?: { id: string; role: string }) {
+    await this.assertStudentAccess(requestingUser, studentId);
+
     const enrollments = await this.prisma.enrollment.findMany({
       where: { studentId, deletedAt: null },
       include: { course: { include: { lecturer: { include: { user: true } } } } },
