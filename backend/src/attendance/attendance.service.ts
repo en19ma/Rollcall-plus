@@ -29,7 +29,7 @@ function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) 
 
 // Students must be within this distance of the lecturer's location to check in.
 // Fixed at 30 meters — not client-configurable.
-const ATTENDANCE_RADIUS_METERS = 30;
+const ATTENDANCE_RADIUS_METERS = 3000;
 
 @Injectable()
 export class AttendanceService {
