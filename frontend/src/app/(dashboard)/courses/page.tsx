@@ -116,9 +116,9 @@ export default function CoursesPage() {
             </select>
             <select className="input-field" value={form.lecturerId} onChange={(e) => setForm({ ...form, lecturerId: e.target.value })}>
               <option value="">Assign lecturer (optional, can set later)</option>
-              {lecturers?.data?.filter((l: any) => l.lecturer?.departmentId === course.departmentId)
-              .map((l: any) => (
-            <option key={l.id} value={l.lecturer?.id}>{l.name}</option>))}
+              {lecturers?.data?.map((l: any) => (
+                <option key={l.id} value={l.lecturer?.id}>{l.name}</option>
+              ))}
             </select>
           </div>
           <button
